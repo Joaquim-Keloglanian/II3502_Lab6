@@ -1,0 +1,15 @@
+[project]
+name = "ii3502-lab6"
+version = "0.1.0"
+description = "Distributed Architectures and Programming Lab 6"
+dependencies = []
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src/main/python"]
+
+[dependency-groups]
+dev = ["ruff"]
