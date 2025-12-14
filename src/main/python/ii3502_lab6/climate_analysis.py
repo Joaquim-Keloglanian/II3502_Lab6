@@ -6,7 +6,7 @@ This application analyzes NOAA GSOD climate data using RDD-based transformations
 It loads, cleans, transforms, aggregates, and saves climate analysis results.
 """
 
-from pyspark import SparkContext
+from pyspark import SparkContext, SparkConf
 from datetime import datetime
 import os
 import argparse
@@ -68,10 +68,16 @@ def is_valid_record(record):
 
 def main(input_path, output_path):
   """Main function to run the climate analysis."""
-  # Initialize SparkContext
-  sc = SparkContext(appName="ClimateDataAnalysis")
-
-  # Step 1: Data Loading
+  # Initialize SparkContext with configuration for Windows compatibility
+  conf = (
+    SparkConf()
+    .setAppName("ClimateDataAnalysis")
+    .setMaster("local[*]")
+    .set("spark.hadoop.fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem")
+    .set("spark.hadoop.fs.defaultFS", "file:///")
+    .set("spark.python.worker.faulthandler.enabled", "true")
+  )
+  sc = SparkContext(conf=conf)
   # Load CSV files into RDD
   raw_data = sc.textFile(input_path)
 
@@ -212,6 +218,8 @@ def main(input_path, output_path):
     ]
   )
   summary.saveAsTextFile(output_path + "/summary")
+
+  sc.stop()
 
 
 if __name__ == "__main__":
