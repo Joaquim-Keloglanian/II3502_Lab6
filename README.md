@@ -31,18 +31,23 @@ This will install PySpark and other dependencies.
 
 ### Running the Application
 
-The main script is `climate_analysis.py`. Run it with input and output paths:
+The main script is `climate_analysis.py`. Run it with optional input and output paths (defaults provided):
 
 ```bash
-uv run python -m ii3502_lab6.climate_analysis <input_path> <output_path>
+uv run python -m ii3502_lab6.climate_analysis [--input <input_path>] [--output <output_path>]
 ```
 
-- `<input_path>`: Path to GSOD CSV file(s) (e.g., `data/2025.csv` or `data/*` for multiple files)
-- `<output_path>`: Directory to save aggregated results
+- `--input`: Path to GSOD CSV file(s) (default: `src/main/resources/data/`)
+- `--output`: Directory to save aggregated results (default: `src/main/resources/output/`)
 
-Example:
+Example with defaults:
 ```bash
-uv run python -m ii3502_lab6.climate_analysis data/2025.csv output/
+uv run python -m ii3502_lab6.climate_analysis
+```
+
+Example with custom paths:
+```bash
+uv run python -m ii3502_lab6.climate_analysis --input data/2025.csv --output results/
 ```
 
 ### Input Data

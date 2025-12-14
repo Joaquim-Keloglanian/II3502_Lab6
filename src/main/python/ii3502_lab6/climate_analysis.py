@@ -8,7 +8,8 @@ It loads, cleans, transforms, aggregates, and saves climate analysis results.
 
 from pyspark import SparkContext
 from datetime import datetime
-import sys
+import os
+import argparse
 
 
 def parse_date(date_str):
@@ -214,9 +215,20 @@ def main(input_path, output_path):
 
 
 if __name__ == "__main__":
-  if len(sys.argv) != 3:
-    print("Usage: python climate_analysis.py <input_path> <output_path>")
-    sys.exit(1)
-  input_path = sys.argv[1]
-  output_path = sys.argv[2]
-  main(input_path, output_path)
+  parser = argparse.ArgumentParser(description="Spark Climate Data Analysis")
+  parser.add_argument(
+    "--input",
+    default="src/main/resources/data/",
+    help="Input path for GSOD CSV files (default: src/main/resources/data/)",
+  )
+  parser.add_argument(
+    "--output",
+    default="src/main/resources/output/",
+    help="Output directory for results (default: src/main/resources/output/)",
+  )
+  args = parser.parse_args()
+
+  # Ensure output directory exists
+  os.makedirs(args.output, exist_ok=True)
+
+  main(args.input, args.output)
