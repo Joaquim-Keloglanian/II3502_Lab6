@@ -4,7 +4,7 @@ from ii3502_lab6.climate_analysis import parse_date, parse_frshtt, is_valid_reco
 
 class TestClimateAnalysis(unittest.TestCase):
   def test_parse_date_valid(self):
-    year, month, season = parse_date("20231215")
+    year, month, season = parse_date("2023-12-15")
     self.assertEqual(year, 2023)
     self.assertEqual(month, 12)
     self.assertEqual(season, "Winter")

@@ -299,34 +299,111 @@ uv run python -m unittest discover src/test/python/
 uv run python -m unittest discover src\test\python\
 ```
 
+### Run Integration Tests
+The integration tests validate the complete end-to-end workflow using actual data files.
+
+**Linux/macOS:**
+```bash
+uv run python -m unittest src/test/integration/test_end_to_end.py
+```
+
+**Windows:**
+Integration tests require native Hadoop libraries not available on Windows. Use Docker to run integration tests:
+```powershell
+# Build the test image
+docker build -t ii3502-lab6 .
+
+# Run integration tests in container
+docker run --rm `
+  -v "${PWD}\src:/app/src" `
+  ii3502-lab6 `
+  uv run python -m unittest src/test/integration/test_end_to_end.py
+```
+
+**Integration Test Coverage:**
+- Complete data loading pipeline from CSV files
+- Data cleaning and validation
+- All aggregation operations (monthly, yearly, seasonal)
+- Extreme event detection
+- Summary statistics generation
+- Output file creation and validation
+
 ### Run Specific Test
 ```bash
 uv run python -m unittest src.test.python.test_climate_analysis
+```
+
+### Run All Tests
+```bash
+# Linux/macOS
+uv run python -m unittest discover src/test/
+
+# Windows
+uv run python -m unittest discover src\test\
 ```
 
 ## Project Structure
 
 ```
 .
-├── src/
-│   ├── main/
-│   │   ├── python/
-│   │   │   └── ii3502_lab6/
-│   │   │       ├── __init__.py
-│   │   │       └── climate_analysis.py    # Main application
-│   │   └── resources/
-│   │       ├── data/                      # Input CSV files
-│   │       └── output/                    # Analysis results
-│   └── test/
-│       ├── integration/                   # Integration tests
-│       └── python/                        # Unit tests
+├── src
+│   ├── main
+│   │   ├── python
+│   │   │   ├── ii3502_lab6
+│   │   │   │   ├── __pycache__
+│   │   │   │   │   ├── __init__.cpython-313.pyc
+│   │   │   │   │   └── climate_analysis.cpython-313.pyc
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── climate_analysis.py
+│   │   │   └── ii3502_lab6.egg-info
+│   │   │       ├── PKG-INFO
+│   │   │       ├── SOURCES.txt
+│   │   │       ├── dependency_links.txt
+│   │   │       ├── requires.txt
+│   │   │       └── top_level.txt
+│   │   └── resources
+│   │       ├── data
+│   │       │   ├── 01001099999.csv
+│   │       │   ├── 01001499999.csv
+│   │       │   └── 01002099999.csv
+│   │       └── output
+│   │           ├── extreme_events
+│   │           │   ├── _SUCCESS
+│   │           │   └── part-00000
+│   │           ├── highest_max_temp
+│   │           │   ├── _SUCCESS
+│   │           │   └── part-00000
+│   │           ├── monthly_avg_temp
+│   │           │   ├── _SUCCESS
+│   │           │   └── part-00000
+│   │           ├── seasonal_prcp
+│   │           │   ├── _SUCCESS
+│   │           │   └── part-00000
+│   │           ├── summary
+│   │           │   ├── _SUCCESS
+│   │           │   └── part-00000
+│   │           └── yearly_avg_temp
+│   │               ├── _SUCCESS
+│   │               └── part-00000
+│   └── test
+│       ├── integration
+│       │   └── test_end_to_end.py
+│       └── python
+│           ├── __pycache__
+│           │   ├── test_climate_analysis.cpython-313.pyc
+│           │   └── test_spark.cpython-313.pyc
 │           ├── __init__.py
-│           └── test_climate_analysis.py
-├── AGENTS.md                              # Development guidelines
-├── Dockerfile                             # Docker container definition
-├── pyproject.toml                         # Project configuration
-├── README.md                              # This file
-└── uv.lock                               # Dependency lock file
+│           ├── test_climate_analysis.py
+│           └── test_spark.py
+├── AGENTS.md
+├── DAP_lab6_spark_task.pdf
+├── DAP_lab6_spark_task.txt
+├── Dockerfile
+├── README.md
+├── pyproject.toml
+└── uv.lock
+
+19 directories, 37 files
 ```
 
 ## Development
