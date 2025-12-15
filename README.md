@@ -397,7 +397,6 @@ uv run python -m unittest discover src\test\
 │           └── test_spark.py
 ├── AGENTS.md
 ├── DAP_lab6_spark_task.pdf
-├── DAP_lab6_spark_task.txt
 ├── Dockerfile
 ├── README.md
 ├── pyproject.toml
