@@ -163,14 +163,18 @@ Docker eliminates Windows-specific PySpark compatibility issues and provides a c
    rm -rf "src/main/resources;C"
    ```
 
-4. **Run with custom command-line arguments**:
-   ```powershell
-  docker run --rm -v "${PWD}\src\main\resources:/app/src/main/resources" ii3502-lab6 uv run python -m ii3502_lab6.climate_analysis --input custom/path/ --output custom/output/
-### Docker Usage (Linux)
+   Tip: we include a helper script `run-docker-windows.sh` in the project root that handles path conversion for Windows shells (uses `cygpath` when available) and runs the container with the correct mount. Example:
+   ```bash
+   # Run with default settings
+   ./run-docker-windows.sh
 
-```bash
-# Build the image
-docker build -t ii3502-lab6 .
+   # Run the analysis through the script with custom arguments
+   ./run-docker-windows.sh uv run python -m ii3502_lab6.climate_analysis --output src/main/resources/output/
+   ```
+
+4. **Run with custom command-line arguments**:
+  ```powershell
+ docker run --rm -v "${PWD}\src\main\resources:/app/src/main_resources" ii3502-lab6 uv run python -m ii3502_lab6.climate_analysis --input custom/path/ --output custom/output/
 
 # Run with volume mount
 docker run --rm \
