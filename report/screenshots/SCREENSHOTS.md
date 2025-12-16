@@ -2,7 +2,7 @@
 
 This document specifies exactly what terminal screenshots to capture for the Lab 6 report. Keep screenshots minimal and focused on critical execution stages.
 
-## Required Screenshots (5 Total)
+## Required Screenshots (6 Total)
 
 ### Screenshot 1: Spark Initialization
 **Filename**: `01_spark_initialization.png`
@@ -258,6 +258,39 @@ head -10 src/main/resources/output/extreme_events/part-00000
 
 ---
 
+### Screenshot 6: Spark UI
+**Filename**: `06_spark_ui.png`
+
+**What to capture**:
+- Browser window showing Spark UI at http://localhost:4040
+- Jobs tab showing completed jobs with stages
+- Job execution timeline and DAG visualization
+- Demonstrates Spark's web interface for monitoring
+
+**How to capture**:
+```bash
+# After application completes and displays:
+# "Spark UI is available at: http://localhost:4040"
+# "Press Enter to stop the application and close the UI..."
+
+# Open browser and navigate to http://localhost:4040
+# Capture the Jobs tab showing:
+# - List of completed jobs
+# - Job stages and tasks
+# - Duration and status of each job
+```
+
+**What this demonstrates**:
+- Spark's built-in monitoring and debugging UI
+- Job execution timeline with stages and tasks
+- DAG visualization showing RDD dependencies
+- Performance metrics for distributed operations
+- Demonstrates that Spark UI remains accessible after execution completes
+
+**Note**: The `-it -p 4040:4040` Docker flags enable interactive terminal and expose Spark UI to host.
+
+---
+
 ## Screenshot Tips
 
 ### Terminal Window Setup
@@ -330,7 +363,8 @@ report/screenshots/
 ├── 02_data_loading_cleaning.png
 ├── 03_aggregations_analysis.png
 ├── 04_results_saving_completion.png
-└── 05_output_verification.png
+├── 05_output_verification.png
+└── 06_spark_ui.png
 ```
 
 ---
@@ -338,7 +372,7 @@ report/screenshots/
 ## Quality Checklist
 
 Before submitting screenshots, verify:
-- [ ] All 5 screenshots captured
+- [ ] All 6 screenshots captured (5 terminal + 1 browser UI)
 - [ ] Text is readable and not blurry
 - [ ] Terminal output shows complete sections (not cut off mid-line)
 - [ ] Timing values are visible (demonstrates performance)
@@ -427,9 +461,9 @@ station_id,event_type,count
 ## Notes
 
 - These screenshots document **local execution** with PySpark in `local[*]` mode (uses all available CPU cores)
-- Focus on **terminal output** showing Spark job execution stages, not Spark UI/browser
-- The 5 screenshots cover the complete pipeline: 
-  1. Initialization → 2. Loading & Cleaning → 3. Transformation & Aggregation → 4. Saving → 5. Verification
+- Includes **both terminal output** (Screenshots 1-5) and **Spark UI web interface** (Screenshot 6)
+- The 6 screenshots cover the complete pipeline: 
+  1. Initialization → 2. Loading & Cleaning → 3. Transformation & Aggregation → 4. Saving → 5. Verification → 6. Spark UI
 - Keep total screenshot count minimal (5) to maintain report conciseness
 - Each screenshot should be referenced in the report with LaTeX figures:
   - `\ref{fig:spark_init}` for Screenshot 1
@@ -437,6 +471,7 @@ station_id,event_type,count
   - `\ref{fig:aggregations}` for Screenshot 3
   - `\ref{fig:results_saving}` for Screenshot 4
   - `\ref{fig:output_verification}` for Screenshot 5
+  - `\ref{fig:spark_ui}` for Screenshot 6
 - Sample data includes 3 Norwegian weather stations from 2025:
   - 01001099999 (JAN MAYEN NOR NAVY)
   - 01001499999 (SORSTOKKEN)

@@ -319,6 +319,17 @@ Figure \ref{fig:output_verification} shows the verification of generated output 
     \label{fig:output_verification}
 \end{figure}
 
+\subsubsection{Spark Web UI}
+
+Figure \ref{fig:spark_ui} displays the Spark Web UI accessible at http://localhost:4040, showing the Jobs tab with completed jobs, execution stages, and DAG visualization. The UI remains accessible after execution completes, allowing inspection of job performance and RDD lineage.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/06_spark_ui.png}
+    \caption{Spark Web UI showing Jobs and Execution Stages}
+    \label{fig:spark_ui}
+\end{figure}
+
 \subsection{Performance and Results}
 
 \textbf{Performance:} Data loading ~1s, cleaning/validation <1s, aggregations <1s, output writing <2s. Total pipeline: 5-10 seconds for 3 stations (1095 records).
