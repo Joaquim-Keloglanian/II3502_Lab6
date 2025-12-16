@@ -11,6 +11,7 @@ The application performs comprehensive climate data analysis including:
 - **Aggregations**: Monthly, yearly, and seasonal climate metric calculations
 - **Analysis**: Temperature trends, precipitation patterns, and extreme weather statistics
 - **Results Export**: Organized output files with summary statistics
+- **Station Mapping**: Interactive HTML map visualization of weather station locations
 
 ## System Requirements
 
@@ -19,6 +20,7 @@ The application performs comprehensive climate data analysis including:
 - **Java**: Version 8 or 11 (required for Apache Spark)
 - **uv**: Modern Python package and project manager
 - **Apache Spark**: 3.5.x (automatically installed via PySpark)
+- **Folium**: Interactive map visualization library (automatically installed)
 
 ### Platform-Specific Requirements
 
@@ -64,7 +66,7 @@ source .venv/bin/activate
 .venv\Scripts\activate
 
 # Install dependencies
-pip install pyspark
+pip install pyspark folium
 ```
 
 ## Usage
@@ -203,6 +205,34 @@ uv run python -m ii3502_lab6.climate_analysis --input data/01001099999.csv --out
 # Example 4: Use glob pattern for specific region
 uv run python -m ii3502_lab6.climate_analysis --input "data/0100*.csv" --output results/region_0100/
 ```
+
+### Station Map Visualization
+
+Generate an interactive HTML map showing the geographical locations of all weather stations in your dataset:
+
+```bash
+# Generate map with default paths
+uv run python -m ii3502_lab6.station_map
+
+# Generate map from specific directory
+uv run python -m ii3502_lab6.station_map --input data/2025/ --output maps/2025_stations.html
+
+# Generate map from single file
+uv run python -m ii3502_lab6.station_map --input data/station.csv --output station_map.html
+```
+
+**Map Features:**
+- Interactive markers for each station with popup information
+- Station details including ID, name, coordinates, and elevation
+- Click markers to view full station information
+- Automatically centered and zoomed to show all stations
+- Opens in any web browser
+
+**Output:** The map is saved as an HTML file that can be opened in any browser. It displays:
+- Station name and ID
+- Precise coordinates (latitude/longitude)
+- Elevation above sea level
+- Interactive pan and zoom controls
 
 ## Input Data
 

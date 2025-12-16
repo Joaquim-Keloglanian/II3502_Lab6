@@ -29,7 +29,6 @@ import argparse
 import csv
 import shutil
 import logging
-import glob
 import time
 
 # Configure a simple logger for human-friendly, step-oriented output
@@ -190,6 +189,13 @@ def main(input_path, output_path, keep_ui_open=True):
   6. Computes summary statistics
   7. Saves results to output directory
 
+  OPTIMIZATIONS FOR LARGE DATASETS:
+  - RDD caching for reused data to avoid recomputation
+  - Configurable output partitions based on dataset size
+  - Progress tracking with time estimates for each step
+  - Memory-efficient operations (using reduceByKey instead of groupByKey)
+  - Automatic cache cleanup after processing
+
   Args:
       input_path (str): Path to input GSOD CSV file(s). Can be:
           - Single file path (e.g., "data/station.csv")
@@ -212,7 +218,14 @@ def main(input_path, output_path, keep_ui_open=True):
   Note:
       The function handles CSV files with inconsistent formatting where station names
       may contain commas, causing field count variations (28 vs 29 fields).
+
+  Performance Tips for Very Large Datasets:
+      - Increase executor memory: spark.executor.memory=8g
+      - Increase driver memory: spark.driver.memory=4g
+      - Adjust default parallelism based on cluster size
+      - Monitor Spark UI (http://localhost:4040) for bottlenecks
   """
+  start_time = time.time()
   # Initialize SparkContext with configuration optimized for local execution
   # and cross-platform compatibility (Windows/Linux)
   conf = (
@@ -245,43 +258,19 @@ def main(input_path, output_path, keep_ui_open=True):
   # ============================================================================
   log_step("Data Loading")
 
-  # List local files (if input is a local path / glob) for user visibility
-  local_matches = glob.glob(input_path)
-  if local_matches:
-    log_info("Found {0} file(s):", len(local_matches))
-    for f in local_matches:
-      log_info(" - {0}", f)
-
-    # On Windows, use Python to read files and parallelize (avoids Hadoop native library issues)
-    log_info("Loading files using Python (Windows compatibility mode)")
-    all_lines = []
-    for file_path in local_matches:
-      try:
-        with open(file_path, "r", encoding="utf-8") as f:
-          lines = f.readlines()
-          all_lines.extend([line.rstrip("\n\r") for line in lines])
-          log_info(
-            "  Loaded {0} lines from {1}", len(lines), os.path.basename(file_path)
-          )
-      except Exception as e:
-        log_info("  Warning: Could not read {0}: {1}", file_path, str(e))
-
-    if not all_lines:
-      logger.error("ERROR: No data loaded from files")
-      sc.stop()
-      return
-
-    log_info("Total lines loaded: {0}", len(all_lines))
-    raw_data = sc.parallelize(all_lines)
-  else:
-    # Fallback to Spark textFile for non-local paths
-    log_info("No local files matched; using Spark textFile() for: {0}", input_path)
-    try:
-      raw_data = sc.textFile(input_path)
-    except Exception as e:
-      logger.error("ERROR: Could not load data from {0}: {1}", input_path, str(e))
-      sc.stop()
-      return
+  # Use Spark's native textFile() for efficient distributed file loading
+  log_info("Loading files using Spark textFile() for: {0}", input_path)
+  try:
+    raw_data = sc.textFile(input_path)
+    # Trigger action to verify data loaded successfully
+    t0 = time.time()
+    line_count = raw_data.count()
+    t1 = time.time()
+    log_info("Loaded {0} lines total (count took {1:.2f}s)", line_count, t1 - t0)
+  except Exception as e:
+    logger.error("ERROR: Could not load data from {0}: {1}", input_path, str(e))
+    sc.stop()
+    return
 
   # Show a small preview
   try:
@@ -389,6 +378,7 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info("Transforming records and parsing dates/events...")
 
   # Transform cleaned records into structured format with parsed dates and numeric values
+  t0 = time.time()
   transformed_data = cleaned_data.map(
     lambda record: {
       "station": record["STATION"],
@@ -405,6 +395,22 @@ def main(input_path, output_path, keep_ui_open=True):
     }
   ).filter(lambda r: r["year"] is not None)  # Remove records with invalid dates
 
+  # Cache transformed data since it will be reused for multiple aggregations
+  # This significantly improves performance for large datasets
+  transformed_data.cache()
+
+  # Trigger computation to cache the data and get actual count
+  try:
+    transformed_count = transformed_data.count()
+    t1 = time.time()
+    log_info(
+      "Transformed and cached {0} records (took {1:.2f}s)",
+      transformed_count,
+      t1 - t0,
+    )
+  except Exception:
+    log_info("Transformation complete (count unavailable)")
+
   # ============================================================================
   # Step 4: Aggregations and Climate Analysis
   # ============================================================================
@@ -413,9 +419,14 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info(
     "Computing monthly averages, yearly averages, seasonal precipitation, highest temps and extreme event counts..."
   )
+  log_info("Note: This step may take several minutes for large datasets...")
+
+  aggregation_start = time.time()
 
   # 1. Monthly average temperatures per station
   # Calculate mean temperature for each station-year-month combination
+  log_info("[1/6] Computing monthly average temperatures...")
+  t0 = time.time()
   monthly_avg_temp = (
     transformed_data.map(
       lambda r: ((r["station"], r["year"], r["month"]), (r["temp"], 1))
@@ -423,23 +434,42 @@ def main(input_path, output_path, keep_ui_open=True):
     .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))  # Sum temps and counts
     .mapValues(lambda v: v[0] / v[1])  # Calculate average
   )
+  # Trigger computation to measure time
+  try:
+    monthly_count = monthly_avg_temp.count()
+    t1 = time.time()
+    log_info(
+      "    Completed: {0} monthly records (took {1:.2f}s)", monthly_count, t1 - t0
+    )
+  except Exception:
+    log_info("    Completed (count unavailable)")
 
   try:
     distinct_stations = transformed_data.map(lambda r: r["station"]).distinct().count()
-    log_info("Distinct stations in data: {0}", distinct_stations)
+    log_info("    Distinct stations in data: {0}", distinct_stations)
   except Exception:
     pass
 
   # 2. Yearly average temperatures per station
   # Calculate mean temperature for each station-year combination
+  log_info("[2/6] Computing yearly average temperatures...")
+  t0 = time.time()
   yearly_avg_temp = (
     transformed_data.map(lambda r: ((r["station"], r["year"]), (r["temp"], 1)))
     .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))
     .mapValues(lambda v: v[0] / v[1])
   )
+  try:
+    yearly_count = yearly_avg_temp.count()
+    t1 = time.time()
+    log_info("    Completed: {0} yearly records (took {1:.2f}s)", yearly_count, t1 - t0)
+  except Exception:
+    log_info("    Completed")
 
   # 3. Seasonal precipitation averages
   # Calculate mean precipitation for each station-year-season combination
+  log_info("[3/6] Computing seasonal precipitation averages...")
+  t0 = time.time()
   seasonal_prcp = (
     transformed_data.map(
       lambda r: ((r["station"], r["year"], r["season"]), (r["prcp"], 1))
@@ -447,27 +477,55 @@ def main(input_path, output_path, keep_ui_open=True):
     .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))
     .mapValues(lambda v: v[0] / v[1])
   )
+  try:
+    seasonal_count = seasonal_prcp.count()
+    t1 = time.time()
+    log_info(
+      "    Completed: {0} seasonal records (took {1:.2f}s)", seasonal_count, t1 - t0
+    )
+  except Exception:
+    log_info("    Completed")
 
   # 4. Stations with highest maximum daily temperatures
   # Find the highest recorded maximum temperature for each station and take top 10
+  log_info("[4/6] Finding stations with highest maximum temperatures...")
+  t0 = time.time()
   highest_max_temp = (
     transformed_data.map(lambda r: (r["station"], r["max_temp"]))
     .reduceByKey(max)  # Get maximum temp for each station
     .sortBy(lambda x: x[1], ascending=False)  # Sort by temperature descending
     .take(10)  # Collect top 10 stations
   )
+  t1 = time.time()
+  log_info("    Completed: Top 10 stations identified (took {0:.2f}s)", t1 - t0)
 
   # 5. Extreme weather events count per station and event type
   # Count occurrences of each event type (Fog, Rain, Snow, Hail, Thunder, Tornado)
+  log_info("[5/6] Counting extreme weather events...")
+  t0 = time.time()
   extreme_events = transformed_data.flatMap(
     lambda r: [
       ((r["station"], event), 1) for event in r["events"] if r["events"][event]
     ]
   ).reduceByKey(lambda a, b: a + b)
+  try:
+    event_count = extreme_events.count()
+    t1 = time.time()
+    log_info("    Completed: {0} event records (took {1:.2f}s)", event_count, t1 - t0)
+  except Exception:
+    log_info("    Completed")
+
+  aggregation_end = time.time()
+  log_info(
+    "Total aggregation time: {0:.2f}s ({1:.2f} minutes)",
+    aggregation_end - aggregation_start,
+    (aggregation_end - aggregation_start) / 60,
+  )
 
   # ============================================================================
   # Step 5: Summary Statistics
   # ============================================================================
+  log_info("[6/6] Computing summary statistics...")
 
   # Compute hottest year (average temperature across all stations for each year)
   try:
@@ -534,6 +592,17 @@ def main(input_path, output_path, keep_ui_open=True):
   log_step("Saving Results")
   log_info("Saving results to: {0}", output_path)
 
+  # Determine optimal number of output partitions based on dataset size
+  # For very large datasets, using coalesce(1) can be a bottleneck
+  # Use multiple partitions (4-8) for large datasets, single partition for small ones
+  try:
+    num_output_partitions = (
+      1 if transformed_count < 100000 else min(4, sc.defaultParallelism)
+    )
+    log_info("Using {0} output partition(s) for writing results", num_output_partitions)
+  except Exception:
+    num_output_partitions = 1
+
   # Remove existing output directories to allow overwriting
   output_dirs = [
     "monthly_avg_temp",
@@ -553,7 +622,7 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info("Saving monthly averages...")
   t0 = time.time()
   monthly_avg_temp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[0][2]},{x[1]}").coalesce(
-    1
+    num_output_partitions
   ).saveAsTextFile(output_path + "/monthly_avg_temp")
   log_info("Saved monthly averages (took {0:.2f}s)", time.time() - t0)
 
@@ -561,7 +630,7 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info("Saving yearly averages...")
   t0 = time.time()
   yearly_avg_temp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[1]}").coalesce(
-    1
+    num_output_partitions
   ).saveAsTextFile(output_path + "/yearly_avg_temp")
   log_info("Saved yearly averages (took {0:.2f}s)", time.time() - t0)
 
@@ -569,7 +638,7 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info("Saving seasonal precipitation averages...")
   t0 = time.time()
   seasonal_prcp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[0][2]},{x[1]}").coalesce(
-    1
+    num_output_partitions
   ).saveAsTextFile(output_path + "/seasonal_prcp")
   log_info("Saved seasonal precipitation (took {0:.2f}s)", time.time() - t0)
 
@@ -585,7 +654,7 @@ def main(input_path, output_path, keep_ui_open=True):
   log_info("Saving extreme events counts...")
   t0 = time.time()
   extreme_events.map(lambda x: f"{x[0][0]},{x[0][1]},{x[1]}").coalesce(
-    1
+    num_output_partitions
   ).saveAsTextFile(output_path + "/extreme_events")
   log_info("Saved extreme events counts (took {0:.2f}s)", time.time() - t0)
 
@@ -599,7 +668,27 @@ def main(input_path, output_path, keep_ui_open=True):
   )
   summary.coalesce(1).saveAsTextFile(output_path + "/summary")
 
+  # Unpersist cached RDD to free memory
+  transformed_data.unpersist()
+
   log_info("Analysis complete! Results saved successfully.")
+  log_info("")
+  log_info("=" * 70)
+  log_info("PERFORMANCE SUMMARY")
+  log_info("=" * 70)
+  try:
+    total_time = time.time() - start_time
+    log_info(
+      "Total execution time: {0:.2f}s ({1:.2f} minutes)", total_time, total_time / 60
+    )
+    log_info("Records processed: {0}", transformed_count)
+    log_info("Processing rate: {0:.0f} records/second", transformed_count / total_time)
+  except Exception:
+    total_time = time.time() - start_time
+    log_info(
+      "Total execution time: {0:.2f}s ({1:.2f} minutes)", total_time, total_time / 60
+    )
+  log_info("=" * 70)
 
   # Keep Spark UI accessible after completion
   if keep_ui_open:
