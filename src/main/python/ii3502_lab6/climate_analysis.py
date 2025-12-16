@@ -27,6 +27,7 @@ from datetime import datetime
 import os
 import argparse
 import csv
+import shutil
 
 
 def parse_date(date_str):
@@ -393,6 +394,21 @@ def main(input_path, output_path):
   # ============================================================================
 
   print("Saving results to", output_path)
+
+  # Remove existing output directories to allow overwriting
+  output_dirs = [
+    "monthly_avg_temp",
+    "yearly_avg_temp",
+    "seasonal_prcp",
+    "highest_max_temp",
+    "extreme_events",
+    "summary",
+  ]
+
+  for dir_name in output_dirs:
+    dir_path = os.path.join(output_path, dir_name)
+    if os.path.exists(dir_path):
+      shutil.rmtree(dir_path)
 
   # Save monthly average temperatures (format: station,year,month,avg_temp)
   monthly_avg_temp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[0][2]},{x[1]}").coalesce(
