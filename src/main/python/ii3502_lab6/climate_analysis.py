@@ -28,6 +28,25 @@ import os
 import argparse
 import csv
 import shutil
+import logging
+import glob
+
+# Configure a simple logger for human-friendly, step-oriented output
+logger = logging.getLogger("climate")
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter("%(message)s")
+handler.setFormatter(formatter)
+logger.handlers = [handler]
+
+
+def log_step(title):
+  sep = "=" * 70
+  logger.info("\n%s\nSTEP: %s\n%s", sep, title, sep)
+
+
+def log_info(msg, *args):
+  logger.info("  %s", msg.format(*args) if args else msg)
 
 
 def parse_date(date_str):
@@ -206,19 +225,52 @@ def main(input_path, output_path):
   # ============================================================================
   # Step 1: Data Loading
   # ============================================================================
+  log_step("Data Loading")
+
+  # List local files (if input is a local path / glob) for user visibility
+  local_matches = glob.glob(input_path)
+  if local_matches:
+    log_info("Found {0} file(s):", len(local_matches))
+    for f in local_matches:
+      log_info(" - {0}", f)
+  else:
+    log_info(
+      "No local files matched the input pattern; using Spark path: {0}", input_path
+    )
+
+  log_info("Initializing Spark textFile() for input: {0}", input_path)
   raw_data = sc.textFile(input_path)
 
+  # Show a small preview and counts for transparency
+  try:
+    raw_preview = raw_data.take(3)
+    if raw_preview:
+      log_info("Preview (first lines):")
+      for line in raw_preview:
+        log_info("   {0}", line[:200])
+  except Exception:
+    pass
+
+  try:
+    raw_count = raw_data.count()
+    log_info("Total raw lines loaded: {0}", raw_count)
+  except Exception:
+    log_info("Could not determine total line count (skipping count).")
+
   if raw_data.isEmpty():
-    print(f"ERROR: No data loaded from {input_path}")
+    logger.error("ERROR: No data loaded from {0}", input_path)
     sc.stop()
     return
 
   # Remove header row (first line contains column names)
   header = raw_data.first()
+  log_info("Detected header: {0}", header)
   data_without_header = raw_data.filter(lambda line: line != header)
 
   # Parse CSV lines using Python's csv module to handle quoted fields
   parsed_data = data_without_header.map(lambda line: next(csv.reader([line])))
+
+  log_step("Data Cleaning")
 
   # ============================================================================
   # Step 2: Data Cleaning and Field Extraction
@@ -273,17 +325,27 @@ def main(input_path, output_path):
       return None
 
   # Apply field extraction and filter out invalid records
+  log_info("Extracting fields and validating records...")
   cleaned_data = parsed_data.map(extract_fields).filter(lambda x: x is not None)
   cleaned_data = cleaned_data.filter(is_valid_record)
 
+  try:
+    cleaned_count = cleaned_data.count()
+    log_info("Valid records after cleaning: {0}", cleaned_count)
+  except Exception:
+    log_info("Valid records after cleaning: (count unavailable)")
+
   if cleaned_data.isEmpty():
-    print("ERROR: No valid records after cleaning!")
+    logger.error("ERROR: No valid records after cleaning!")
     sc.stop()
     return
 
   # ============================================================================
   # Step 3: Data Transformation
   # ============================================================================
+
+  log_step("Data Transformation")
+  log_info("Transforming records and parsing dates/events...")
 
   # Transform cleaned records into structured format with parsed dates and numeric values
   transformed_data = cleaned_data.map(
@@ -306,6 +368,11 @@ def main(input_path, output_path):
   # Step 4: Aggregations and Climate Analysis
   # ============================================================================
 
+  log_step("Aggregations & Analysis")
+  log_info(
+    "Computing monthly averages, yearly averages, seasonal precipitation, highest temps and extreme event counts..."
+  )
+
   # 1. Monthly average temperatures per station
   # Calculate mean temperature for each station-year-month combination
   monthly_avg_temp = (
@@ -315,6 +382,12 @@ def main(input_path, output_path):
     .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))  # Sum temps and counts
     .mapValues(lambda v: v[0] / v[1])  # Calculate average
   )
+
+  try:
+    distinct_stations = transformed_data.map(lambda r: r["station"]).distinct().count()
+    log_info("Distinct stations in data: {0}", distinct_stations)
+  except Exception:
+    pass
 
   # 2. Yearly average temperatures per station
   # Calculate mean temperature for each station-year combination
@@ -393,7 +466,8 @@ def main(input_path, output_path):
   # Step 6: Saving Results
   # ============================================================================
 
-  print("Saving results to", output_path)
+  log_step("Saving Results")
+  log_info("Saving results to: {0}", output_path)
 
   # Remove existing output directories to allow overwriting
   output_dirs = [
@@ -445,7 +519,7 @@ def main(input_path, output_path):
   )
   summary.coalesce(1).saveAsTextFile(output_path + "/summary")
 
-  print("Analysis complete! Results saved successfully.")
+  log_info("Analysis complete! Results saved successfully.")
   sc.stop()
 
 
