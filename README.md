@@ -134,30 +134,38 @@ Docker eliminates Windows-specific PySpark compatibility issues and provides a c
    ```
 
 3. **Run the container with volume mounts**:
-   ```powershell
-   # Using PowerShell
-   docker run --rm `
-     -v "${PWD}\src\main\resources:/app/src/main/resources" `
-     ii3502-lab6
-   
-   # Using Command Prompt
-   docker run --rm ^
-     -v "%CD%\src\main\resources:/app/src/main/resources" ^
-     ii3502-lab6
+   ```bash
+   # On Git Bash / WSL / Bash (recommended for Windows users using a Unix-like shell)
+   docker run --rm -v "$(pwd)/src/main/resources:/app/src/main/resources" ii3502-lab6
    ```
 
-   The application will:
-   - Load data from `src/main/resources/data/`
-   - Save results to `src/main/resources/output/`
+   ```powershell
+   # Using PowerShell
+   docker run --rm -v "${PWD}\src\main\resources:/app/src\main\resources" ii3502-lab6
+   ```
+
+   **If you prefer Command Prompt:**
+   ```cmd
+   docker run --rm -v "%CD%\src\main\resources:/app/src/main/resources" ii3502-lab6
+   ```
+
+   - The application will load data from `src/main/resources/data/` and save results to `src/main/resources/output/` on the host.
+   - Running these commands will write results directly to `src/main/resources/output/` (no additional `output_host` directory required).
+   - You can run the command repeatedly; the output subfolders will be automatically cleaned and overwritten each time.
+
+   Note: If you run the Bash variant but supply Windows-style backslashes (e.g. `-v "${PWD}\src\main\resources:/app/..."`), Docker may misinterpret the path and create a malformed directory such as `src/main/resources;C` on the host. To avoid this:
+   - Use the Bash command (Git Bash/WSL): `docker run --rm -v "$(pwd)/src/main/resources:/app/src/main/resources" ii3502-lab6`
+   - Or convert to a Windows path explicitly: `docker run --rm -v "$(cygpath -w $(pwd))/src/main/resources:/app/src/main/resources" ii3502-lab6`
+   - In PowerShell, prefer using the `${PWD}` expansion or an explicit absolute path (e.g., `docker run --rm -v "${PWD}\src\main\resources:/app/src/main/resources" ii3502-lab6`).
+
+   If you see a directory named `src/main/resources;C`, remove it with:
+   ```bash
+   rm -rf "src/main/resources;C"
+   ```
 
 4. **Run with custom command-line arguments**:
    ```powershell
-   docker run --rm `
-     -v "${PWD}\src\main\resources:/app/src/main/resources" `
-     ii3502-lab6 `
-     uv run python -m ii3502_lab6.climate_analysis --input custom/path/ --output custom/output/
-   ```
-
+  docker run --rm -v "${PWD}\src\main\resources:/app/src/main/resources" ii3502-lab6 uv run python -m ii3502_lab6.climate_analysis --input custom/path/ --output custom/output/
 ### Docker Usage (Linux)
 
 ```bash
@@ -287,6 +295,7 @@ Highest gust: 01001099999 with 58.50
 - The application uses `coalesce(1)` to consolidate output into single files, avoiding empty partitions
 - For very large datasets, you may want to increase the coalesce number (e.g., `coalesce(4)`) for better performance
 - To read output: `cat output/summary/part-00000` or `cat output/*/part-*` to read all parts
+- **If you re-run the application, all output subfolders will be automatically deleted and replaced with new results.**
 
 ## Testing
 
