@@ -177,7 +177,7 @@ def is_valid_record(record):
     return False
 
 
-def main(input_path, output_path):
+def main(input_path, output_path, keep_ui_open=True):
   """
   Main execution function for climate data analysis pipeline.
 
@@ -197,6 +197,8 @@ def main(input_path, output_path):
           - Glob pattern for multiple files (e.g., "data/*.csv")
       output_path (str): Directory path where analysis results will be saved.
           Creates subdirectories for different result types.
+      keep_ui_open (bool): If True, pause before stopping SparkContext to keep
+          Spark UI accessible at http://localhost:4040 (default: True)
 
   Outputs:
       Creates the following directories in output_path:
@@ -598,8 +600,19 @@ def main(input_path, output_path):
   summary.coalesce(1).saveAsTextFile(output_path + "/summary")
 
   log_info("Analysis complete! Results saved successfully.")
-  # Give Spark a short grace period to flush logs, then stop
-  time.sleep(0.5)
+
+  # Keep Spark UI accessible after completion
+  if keep_ui_open:
+    log_info("")
+    log_info("=" * 70)
+    log_info("Spark UI is available at: http://localhost:4040")
+    log_info("Press Enter to stop the application and close the UI...")
+    log_info("=" * 70)
+    try:
+      input()
+    except (EOFError, KeyboardInterrupt):
+      log_info("Interrupted, shutting down...")
+
   sc.stop()
 
 
@@ -633,6 +646,12 @@ Examples:
     help="Output directory for analysis results (default: src/main/resources/output/)",
   )
 
+  parser.add_argument(
+    "--no-ui-wait",
+    action="store_true",
+    help="Skip waiting for user input to keep Spark UI accessible (default: wait for Enter)",
+  )
+
   args = parser.parse_args()
 
   # Convert directory paths to glob patterns for Windows compatibility
@@ -644,4 +663,4 @@ Examples:
   os.makedirs(args.output, exist_ok=True)
 
   # Execute main analysis pipeline
-  main(input_path, args.output)
+  main(input_path, args.output, keep_ui_open=not args.no_ui_wait)

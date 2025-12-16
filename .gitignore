@@ -36,3 +36,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# LaTeX
+2025_26_Distributed_Architectures_and_Programming_Lab6_Spark_Report_Joaquim_KELOGLANIAN.out
+2025_26_Distributed_Architectures_and_Programming_Lab6_Spark_Report_Joaquim_KELOGLANIAN.aux
+2025_26_Distributed_Architectures_and_Programming_Lab6_Spark_Report_Joaquim_KELOGLANIAN.log
+2025_26_Distributed_Architectures_and_Programming_Lab6_Spark_Report_Joaquim_KELOGLANIAN.toc

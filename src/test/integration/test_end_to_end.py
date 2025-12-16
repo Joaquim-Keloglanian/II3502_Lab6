@@ -139,7 +139,9 @@ class TestClimateAnalysisEndToEnd(unittest.TestCase):
         return None
 
     # Parse and extract fields
-    parsed_data = data_lines.map(parse_csv_line).map(extract_fields).filter(lambda x: x is not None)
+    parsed_data = (
+      data_lines.map(parse_csv_line).map(extract_fields).filter(lambda x: x is not None)
+    )
 
     # Validate data
     def is_valid_record(record):
@@ -212,7 +214,7 @@ class TestClimateAnalysisEndToEnd(unittest.TestCase):
       output_file = os.path.join(monthly_output, data_files[0])
       # Try to read the file; if it's binary, skip content validation
       try:
-        with open(output_file, "r", encoding='utf-8') as f:
+        with open(output_file, "r", encoding="utf-8") as f:
           lines = f.readlines()
           self.assertGreater(len(lines), 0, "Output file should contain data")
           # Validate CSV format
@@ -220,7 +222,9 @@ class TestClimateAnalysisEndToEnd(unittest.TestCase):
           if first_line:  # Only validate if we have content
             parts = first_line.split(",")
             self.assertEqual(
-              len(parts), 4, f"Each line should have 4 fields: station,year,month,temp. Got: {first_line}"
+              len(parts),
+              4,
+              f"Each line should have 4 fields: station,year,month,temp. Got: {first_line}",
             )
       except UnicodeDecodeError:
         # File might be in unexpected format, but that's okay if it exists
@@ -315,7 +319,9 @@ class TestClimateAnalysisEndToEnd(unittest.TestCase):
       except (ValueError, KeyError):
         return False
 
-    parsed = data_lines.map(parse_csv_line).map(extract_fields).filter(lambda x: x is not None)
+    parsed = (
+      data_lines.map(parse_csv_line).map(extract_fields).filter(lambda x: x is not None)
+    )
     valid_data = parsed.filter(is_valid_record)
     valid_count = valid_data.count()
 
