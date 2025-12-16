@@ -1,0 +1,778 @@
+\documentclass[12pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{enumitem}
+
+% Page layout
+\geometry{
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=3cm
+}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Lab 6: Spark Climate Data Analysis}
+\fancyhead[R]{Joaquim KELOGLANIAN}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Code listing style
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{bashstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=single
+}
+
+\lstset{style=bashstyle}
+
+% Hyperlink colors
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+    citecolor=blue
+}
+
+% Title formatting
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% Document starts
+\begin{document}
+
+% ============================================================================
+% TITLE PAGE
+% ============================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\LARGE \textbf{Institut Supérieur d'Électronique de Paris}} \\[0.5cm]
+    {\Large ISEP} \\[2cm]
+    
+    {\Huge \textbf{Laboratory Report 6}} \\[0.5cm]
+    {\LARGE Distributed Architectures and Programming} \\[0.3cm]
+    {\large II3502} \\[3cm]
+    
+    {\huge \textbf{Spark Climate Data Analysis}} \\[0.5cm]
+    {\Large Using Apache Spark RDDs for NOAA GSOD Data Processing} \\[4cm]
+    
+    \begin{tabular}{ll}
+        \textbf{Student:} & Joaquim KELOGLANIAN \\[0.3cm]
+        \textbf{Course:} & II3502 - Distributed Architectures and Programming \\[0.3cm]
+        \textbf{Academic Year:} & 2025-2026 \\[0.3cm]
+        \textbf{Date:} & December 16, 2025 \\[0.3cm]
+    \end{tabular}
+    
+    \vfill
+\end{titlepage}
+
+% ============================================================================
+% TABLE OF CONTENTS
+% ============================================================================
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================================
+% SECTION 1: INTRODUCTION
+% ============================================================================
+\section{Introduction}
+
+This report documents the implementation and execution of a distributed climate data analysis application using Apache Spark. The project analyzes NOAA Global Surface Summary of the Day (GSOD) climate data using RDD-based transformations and aggregations to compute temperature trends, precipitation patterns, and extreme weather event statistics.
+
+\subsection{Project Objectives}
+
+The main objectives of this laboratory work are:
+
+\begin{itemize}
+    \item Implement a Spark application using RDD-based operations (no DataFrames/SQL)
+    \item Process large-scale climate datasets efficiently using distributed computing
+    \item Perform data cleaning, transformation, and aggregation operations
+    \item Compute climate analysis metrics including temperature trends and extreme events
+    \item Execute the application in both local and containerized environments
+    \item Document execution details and analyze performance characteristics
+\end{itemize}
+
+\subsection{Technology Stack}
+
+\begin{itemize}
+    \item \textbf{Apache Spark 3.5.x}: Distributed computing framework using RDD API
+    \item \textbf{PySpark}: Python API for Apache Spark
+    \item \textbf{Python 3.8+}: Programming language for application implementation
+    \item \textbf{Docker}: Containerization platform for consistent execution environment
+    \item \textbf{NOAA GSOD}: Global Surface Summary of the Day climate dataset
+\end{itemize}
+
+% ============================================================================
+% SECTION 2: APPLICATION ARCHITECTURE
+% ============================================================================
+\section{Application Architecture}
+
+\subsection{Overview}
+
+The application follows a typical Spark batch processing pipeline consisting of six main stages:
+
+\begin{enumerate}
+    \item \textbf{Data Loading}: Load GSOD CSV files into RDDs using \texttt{SparkContext.textFile()}
+    \item \textbf{Data Cleaning}: Parse CSV records, extract relevant fields, and filter invalid values
+    \item \textbf{Data Transformation}: Convert strings to appropriate types, parse dates, and extract event flags
+    \item \textbf{Aggregations}: Compute monthly/yearly averages, seasonal metrics, and extreme events
+    \item \textbf{Analysis}: Calculate summary statistics (hottest year, wettest station, highest gust)
+    \item \textbf{Results Export}: Save aggregated results to text files using \texttt{saveAsTextFile()}
+\end{enumerate}
+
+\subsection{Data Processing Pipeline}
+
+The application processes climate data through the following transformations:
+
+\begin{itemize}
+    \item \textbf{CSV Parsing}: Handles two CSV formats (28 and 29 fields) due to inconsistent station name formatting
+    \item \textbf{Field Extraction}: Extracts STATION, DATE, TEMP, MAX, MIN, PRCP, WDSP, GUST, FRSHTT fields
+    \item \textbf{Validation}: Filters records with missing values (999.9 or 9999.9 indicators)
+    \item \textbf{Date Parsing}: Extracts year, month, and season from ISO date format
+    \item \textbf{Event Detection}: Parses FRSHTT binary flags for Fog, Rain, Snow, Hail, Thunder, Tornado
+\end{itemize}
+
+\subsection{Aggregation Operations}
+
+The application computes the following climate metrics:
+
+\begin{enumerate}
+    \item \textbf{Monthly Average Temperature}: Mean temperature per station-year-month combination
+    \item \textbf{Yearly Average Temperature}: Mean temperature per station-year combination
+    \item \textbf{Seasonal Precipitation}: Mean precipitation per station-year-season combination
+    \item \textbf{Highest Maximum Temperature}: Top 10 stations with highest recorded maximum temperatures
+    \item \textbf{Extreme Events}: Count of weather events per station and event type
+    \item \textbf{Summary Statistics}: Hottest year, wettest station, highest wind gust
+\end{enumerate}
+
+% ============================================================================
+% SECTION 3: IMPLEMENTATION DETAILS
+% ============================================================================
+\section{Implementation Details}
+
+\subsection{RDD Transformations}
+
+The application uses only RDD-based operations without DataFrames or Spark SQL. Key transformations include:
+
+\begin{itemize}
+    \item \texttt{map()}: Field extraction, date parsing, event flag parsing
+    \item \texttt{filter()}: Invalid record removal, header filtering
+    \item \texttt{flatMap()}: Extreme event explosion (one record per event per station)
+    \item \texttt{reduceByKey()}: Temperature averaging, precipitation summing, event counting
+    \item \texttt{sortBy()}: Sorting stations by temperature, precipitation, wind gust
+    \item \texttt{coalesce(1)}: Consolidating output partitions into single files
+\end{itemize}
+
+\subsection{Data Quality Handling}
+
+The application implements robust data quality controls:
+
+\begin{itemize}
+    \item \textbf{CSV Format Handling}: Automatically detects and handles 28-field vs 29-field formats
+    \item \textbf{Missing Value Detection}: Filters records with 999.9 or 9999.9 missing indicators
+    \item \textbf{Type Validation}: Ensures all numeric fields can be converted to floats
+    \item \textbf{Date Validation}: Filters records with unparseable dates
+    \item \textbf{Header Removal}: Automatically detects and removes CSV header row
+\end{itemize}
+
+\subsection{Performance Optimizations}
+
+Several optimizations were implemented for efficient processing:
+
+\begin{itemize}
+    \item \textbf{Local Mode}: Uses \texttt{local[*]} master to utilize all available CPU cores
+    \item \textbf{Output Consolidation}: Uses \texttt{coalesce(1)} to create single output files per metric
+    \item \textbf{Lazy Evaluation}: Leverages Spark's lazy evaluation for efficient execution plans
+    \item \textbf{In-Memory Caching}: Avoids intermediate file writes by keeping data in memory
+    \item \textbf{Partition Handling}: Prevents empty partition creation with appropriate coalescing
+\end{itemize}
+
+% ============================================================================
+% SECTION 4: EXECUTION ENVIRONMENT
+% ============================================================================
+\section{Execution Environment}
+
+\subsection{Deployment Configuration}
+
+The application can be executed in two modes:
+
+\subsubsection{Native Execution (Linux/macOS)}
+
+\textbf{Prerequisites:}
+\begin{itemize}
+    \item Python 3.8+
+    \item Java 8 or 11 (JDK)
+    \item Apache Spark 3.5.x (installed via PySpark)
+    \item uv package manager
+\end{itemize}
+
+\textbf{Configuration:}
+\begin{itemize}
+    \item \textbf{Spark Master}: \texttt{local[*]} (uses all available cores)
+    \item \textbf{Application Name}: \texttt{ClimateDataAnalysis}
+    \item \textbf{File System}: Local file system (\texttt{file:///})
+    \item \textbf{Driver Memory}: Default (configurable via \texttt{spark.driver.memory})
+    \item \textbf{Executor Memory}: Default (configurable via \texttt{spark.executor.memory})
+\end{itemize}
+
+\subsubsection{Docker Execution (Windows/Cross-Platform)}
+
+\textbf{Docker Image:}
+\begin{itemize}
+    \item \textbf{Base Image}: Python 3.11 slim
+    \item \textbf{Java}: OpenJDK 17
+    \item \textbf{PySpark}: Installed via uv package manager
+    \item \textbf{Working Directory}: \texttt{/app}
+\end{itemize}
+
+\textbf{Volume Mounts:}
+\begin{itemize}
+    \item Host: \texttt{./src/main/resources} $\rightarrow$ Container: \texttt{/app/src/main/resources}
+    \item Input data: \texttt{src/main/resources/data/*.csv}
+    \item Output results: \texttt{src/main/resources/output/}
+\end{itemize}
+
+\subsection{Spark Configuration}
+
+The application uses the following Spark configuration:
+
+\begin{lstlisting}[language=Python, caption=Spark Configuration]
+conf = (
+    SparkConf()
+    .setAppName("ClimateDataAnalysis")
+    .setMaster("local[*]")
+    .set("spark.hadoop.fs.file.impl", 
+         "org.apache.hadoop.fs.LocalFileSystem")
+    .set("spark.hadoop.fs.defaultFS", "file:///")
+    .set("spark.python.worker.faulthandler.enabled", "true")
+)
+\end{lstlisting}
+
+% ============================================================================
+% SECTION 5: HOW TO RUN THE APPLICATION
+% ============================================================================
+\section{How to Run the Application}
+
+This section provides step-by-step instructions for executing the climate data analysis application in different environments.
+
+\subsection{Prerequisites}
+
+Before running the application, ensure you have:
+
+\begin{itemize}
+    \item Cloned the repository: \texttt{git clone https://github.com/Joaquim-Keloglanian/II3502_Lab6.git}
+    \item Navigated to project root: \texttt{cd Deliverable3}
+    \item Input data files in: \texttt{src/main/resources/data/*.csv}
+\end{itemize}
+
+\subsection{Running on Linux/macOS}
+
+\subsubsection{Installation}
+
+\begin{lstlisting}[language=bash, caption=Linux/macOS Setup]
+# Install Java (if not already installed)
+sudo apt-get install openjdk-11-jdk  # Debian/Ubuntu
+brew install openjdk@11              # macOS
+
+# Install uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Python dependencies
+uv sync
+\end{lstlisting}
+
+\subsubsection{Execution}
+
+\begin{lstlisting}[language=bash, caption=Run Application with Default Paths]
+# Run with default input/output paths
+uv run python -m ii3502_lab6.climate_analysis
+
+# Expected output: Results saved to src/main/resources/output/
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash, caption=Run Application with Custom Paths]
+# Run with custom input/output directories
+uv run python -m ii3502_lab6.climate_analysis \
+    --input /path/to/data/ \
+    --output /path/to/results/
+
+# Run with specific CSV file
+uv run python -m ii3502_lab6.climate_analysis \
+    --input data/01001099999.csv \
+    --output results/station_01001099999/
+\end{lstlisting}
+
+\subsection{Running on Windows (Docker)}
+
+\subsubsection{Installation}
+
+\begin{enumerate}
+    \item Install Docker Desktop for Windows from \url{https://www.docker.com/products/docker-desktop/}
+    \item Ensure Docker Desktop is running
+    \item Open PowerShell or Git Bash in project root directory
+\end{enumerate}
+
+\subsubsection{Build Docker Image}
+
+\begin{lstlisting}[language=bash, caption=Build Docker Image]
+# Build the Docker image
+docker build -t ii3502-lab6 .
+
+# Verify image was created
+docker images | grep ii3502-lab6
+\end{lstlisting}
+
+\subsubsection{Run Application in Container}
+
+\begin{lstlisting}[language=bash, caption=Run Docker Container (Git Bash)]
+# Run with volume mount (Git Bash / WSL)
+docker run --rm \
+    -v "$(pwd)/src/main/resources:/app/src/main/resources" \
+    ii3502-lab6
+
+# Results will be written to src/main/resources/output/
+\end{lstlisting}
+
+\begin{lstlisting}[language=PowerShell, caption=Run Docker Container (PowerShell)]
+# Run with volume mount (PowerShell)
+docker run --rm `
+    -v "${PWD}\src\main\resources:/app/src\main\resources" `
+    ii3502-lab6
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash, caption=Run with Helper Script]
+# Use provided helper script for automatic path handling
+./run-docker-windows.sh
+
+# Or with custom arguments
+./run-docker-windows.sh uv run python -m ii3502_lab6.climate_analysis \
+    --input src/main/resources/data/ \
+    --output src/main/resources/output/
+\end{lstlisting}
+
+\subsection{Expected Output}
+
+After successful execution, the following directory structure will be created:
+
+\begin{lstlisting}[caption=Output Directory Structure]
+src/main/resources/output/
+├── monthly_avg_temp/
+│   ├── _SUCCESS
+│   └── part-00000          # Format: station,year,month,avg_temp
+├── yearly_avg_temp/
+│   ├── _SUCCESS
+│   └── part-00000          # Format: station,year,avg_temp
+├── seasonal_prcp/
+│   ├── _SUCCESS
+│   └── part-00000          # Format: station,year,season,avg_prcp
+├── highest_max_temp/
+│   ├── _SUCCESS
+│   └── part-00000          # Format: station,max_temp (top 10)
+├── extreme_events/
+│   ├── _SUCCESS
+│   └── part-00000          # Format: station,event_type,count
+└── summary/
+    ├── _SUCCESS
+    └── part-00000          # Human-readable summary statistics
+\end{lstlisting}
+
+\subsection{Viewing Results}
+
+\begin{lstlisting}[language=bash, caption=View Output Files]
+# View summary statistics
+cat src/main/resources/output/summary/part-00000
+
+# View monthly averages (first 10 lines)
+head -10 src/main/resources/output/monthly_avg_temp/part-00000
+
+# View extreme events
+cat src/main/resources/output/extreme_events/part-00000
+
+# Count total records in yearly averages
+wc -l src/main/resources/output/yearly_avg_temp/part-00000
+\end{lstlisting}
+
+\subsection{Running Tests}
+
+\begin{lstlisting}[language=bash, caption=Unit Tests]
+# Run all unit tests
+uv run python -m unittest discover src/test/python/
+
+# Run specific test module
+uv run python -m unittest src.test.python.test_climate_analysis
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash, caption=Integration Tests (Docker)]
+# Run integration tests in Docker container
+docker run --rm \
+    -v "$(pwd)/src:/app/src" \
+    ii3502-lab6 \
+    uv run python -m unittest src/test/integration/test_end_to_end.py
+\end{lstlisting}
+
+\subsection{Troubleshooting}
+
+Common issues and solutions:
+
+\begin{itemize}
+    \item \textbf{JAVA\_HOME not set}: Set environment variable to Java installation directory
+    \item \textbf{Windows path issues}: Use provided \texttt{run-docker-windows.sh} script
+    \item \textbf{Permission denied (Docker)}: Enable shared drives in Docker Desktop settings
+    \item \textbf{Empty output}: Verify input data exists in \texttt{src/main/resources/data/}
+    \item \textbf{Memory errors}: Increase Docker memory allocation in Docker Desktop settings
+\end{itemize}
+
+% ============================================================================
+% SECTION 6: EXECUTION RESULTS
+% ============================================================================
+\section{Execution Results}
+
+\subsection{Terminal Execution Screenshots}
+
+This section presents terminal screenshots demonstrating the complete execution workflow of the Spark climate data analysis application.
+
+\subsubsection{Application Startup and Initialization}
+
+Figure \ref{fig:spark_init} shows the Spark context initialization with configuration details including master URL, application name, and default parallelism. This demonstrates the successful setup of the local Spark environment.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/01_spark_initialization.png}
+    \caption{Spark Context Initialization and Configuration}
+    \label{fig:spark_init}
+\end{figure}
+
+\subsubsection{Data Loading and Cleaning}
+
+Figure \ref{fig:data_loading} displays the data loading phase, showing the number of raw lines loaded from CSV files, header detection, and the data cleaning process. The output indicates how many valid records remain after filtering invalid values.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/02_data_loading_cleaning.png}
+    \caption{Data Loading, Header Detection, and Cleaning Process}
+    \label{fig:data_loading}
+\end{figure}
+
+\subsubsection{Aggregations and Analysis}
+
+Figure \ref{fig:aggregations} shows the execution of various aggregation operations including monthly averages, yearly averages, seasonal precipitation, and extreme event detection. The screenshot displays computation times for each operation.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/03_aggregations_analysis.png}
+    \caption{Climate Metric Aggregations and Analysis Operations}
+    \label{fig:aggregations}
+\end{figure}
+
+\subsubsection{Results Saving and Completion}
+
+Figure \ref{fig:results_saving} demonstrates the final stage where computed results are saved to output directories. The screenshot shows the creation of output files for each metric type and the successful completion message.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/04_results_saving_completion.png}
+    \caption{Results Export and Application Completion}
+    \label{fig:results_saving}
+\end{figure}
+
+\subsubsection{Output Files Verification}
+
+Figure \ref{fig:output_verification} shows the verification of generated output files using terminal commands to list directory contents and display sample results from each output category.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{screenshots/05_output_verification.png}
+    \caption{Output Directory Structure and Sample Results}
+    \label{fig:output_verification}
+\end{figure}
+
+\subsection{Performance Analysis}
+
+The execution logs reveal several performance characteristics:
+
+\begin{itemize}
+    \item \textbf{Data Loading}: Approximately 0.5-1.5 seconds for small datasets (3 CSV files)
+    \item \textbf{Data Cleaning}: Fast validation using filter operations with minimal overhead
+    \item \textbf{Aggregations}: Most operations complete in under 1 second for sample dataset
+    \item \textbf{Output Writing}: \texttt{coalesce(1)} consolidation adds minimal overhead
+    \item \textbf{Total Execution Time}: Complete pipeline executes in 5-10 seconds for sample data
+\end{itemize}
+
+\subsection{Results Summary}
+
+The application successfully computes all required climate metrics:
+
+\begin{itemize}
+    \item \textbf{Monthly Average Temperatures}: Computed for each station-year-month combination
+    \item \textbf{Yearly Average Temperatures}: Aggregated for each station per year
+    \item \textbf{Seasonal Precipitation}: Calculated for Winter, Spring, Summer, Autumn
+    \item \textbf{Highest Maximum Temperatures}: Top 10 stations identified and ranked
+    \item \textbf{Extreme Events}: Counts generated for Fog, Rain, Snow, Hail, Thunder, Tornado
+    \item \textbf{Summary Statistics}: Hottest year, wettest station, and highest gust computed
+\end{itemize}
+
+% ============================================================================
+% SECTION 7: ANALYSIS AND OBSERVATIONS
+% ============================================================================
+\section{Analysis and Observations}
+
+\subsection{Data Quality Insights}
+
+Analysis of the NOAA GSOD dataset revealed several data quality characteristics:
+
+\begin{itemize}
+    \item \textbf{CSV Format Inconsistency}: Two different field counts (28 vs 29) due to station name formatting
+    \item \textbf{Missing Values}: Significant presence of 999.9 and 9999.9 missing indicators
+    \item \textbf{Data Completeness}: Not all stations report all weather variables (e.g., GUST often missing)
+    \item \textbf{Date Continuity}: Some stations have gaps in temporal coverage
+\end{itemize}
+
+\subsection{Climate Patterns}
+
+The analysis revealed interesting climate patterns in the sample data:
+
+\begin{itemize}
+    \item \textbf{Temperature Variations}: Significant temperature ranges across different stations
+    \item \textbf{Seasonal Precipitation}: Clear seasonal patterns in precipitation amounts
+    \item \textbf{Extreme Events}: High frequency of rain and fog events in Norwegian stations
+    \item \textbf{Geographic Differences}: Temperature and precipitation vary by station location
+\end{itemize}
+
+\subsection{Spark Performance}
+
+Observations about Spark execution characteristics:
+
+\begin{itemize}
+    \item \textbf{Lazy Evaluation}: Transformations are not executed until an action is called
+    \item \textbf{Local Mode Efficiency}: \texttt{local[*]} effectively utilizes available CPU cores
+    \item \textbf{RDD Operations}: Map-reduce patterns work efficiently for aggregation tasks
+    \item \textbf{Output Consolidation}: \texttt{coalesce(1)} simplifies result file handling
+    \item \textbf{Memory Management}: Spark manages memory efficiently for small to medium datasets
+\end{itemize}
+
+\subsection{Docker Benefits}
+
+Using Docker for execution provides several advantages:
+
+\begin{itemize}
+    \item \textbf{Consistency}: Identical execution environment across all platforms
+    \item \textbf{Windows Compatibility}: Eliminates Hadoop/Winutils dependency issues
+    \item \textbf{Portability}: Easy deployment to different systems without configuration
+    \item \textbf{Isolation}: Prevents conflicts with system-level dependencies
+    \item \textbf{Reproducibility}: Guaranteed reproducible results across executions
+\end{itemize}
+
+% ============================================================================
+% SECTION 8: CHALLENGES AND SOLUTIONS
+% ============================================================================
+\section{Challenges and Solutions}
+
+\subsection{CSV Format Handling}
+
+\textbf{Challenge:} The GSOD CSV files have inconsistent field counts due to commas in station names.
+
+\textbf{Solution:} Implemented format detection logic that checks field count and adjusts field indexing accordingly. Used Python's \texttt{csv} module to properly handle quoted fields.
+
+\subsection{Windows PySpark Compatibility}
+
+\textbf{Challenge:} PySpark on Windows requires Hadoop native libraries (winutils.exe) which are difficult to configure.
+
+\textbf{Solution:} Created Docker container with Linux environment, eliminating Windows-specific dependencies while maintaining volume mounts for data access.
+
+\subsection{Output File Proliferation}
+
+\textbf{Challenge:} Spark creates multiple partition files (part-00000, part-00001, etc.) which complicates result viewing.
+
+\textbf{Solution:} Used \texttt{coalesce(1)} to consolidate output into single files per metric, simplifying result access and processing.
+
+\subsection{Missing Value Identification}
+
+\textbf{Challenge:} NOAA uses multiple missing value indicators (999.9, 9999.9) which must be filtered.
+
+\textbf{Solution:} Implemented comprehensive validation function that checks all numeric fields against threshold values to filter invalid records.
+
+% ============================================================================
+% SECTION 9: CONCLUSIONS
+% ============================================================================
+\section{Conclusions}
+
+\subsection{Project Summary}
+
+This laboratory successfully demonstrated the use of Apache Spark's RDD API for distributed climate data analysis. The application efficiently processes NOAA GSOD data to compute temperature trends, precipitation patterns, and extreme weather statistics using only RDD-based transformations and aggregations.
+
+\subsection{Key Achievements}
+
+\begin{itemize}
+    \item Successfully implemented complete Spark pipeline using RDD API (no DataFrames/SQL)
+    \item Handled real-world data quality issues (missing values, format inconsistencies)
+    \item Achieved cross-platform compatibility through Docker containerization
+    \item Computed comprehensive climate metrics with distributed processing
+    \item Demonstrated effective use of Spark transformations (map, filter, reduce)
+    \item Created reproducible execution environment with consistent results
+\end{itemize}
+
+\subsection{Learning Outcomes}
+
+This project provided valuable experience with:
+
+\begin{itemize}
+    \item RDD-based distributed data processing with Apache Spark
+    \item Handling large-scale climate datasets with data quality issues
+    \item Implementing map-reduce patterns for aggregation operations
+    \item Containerization for consistent cross-platform execution
+    \item Performance optimization techniques for Spark applications
+    \item Climate data analysis and meteorological event detection
+\end{itemize}
+
+\subsection{Future Enhancements}
+
+Potential improvements for future iterations:
+
+\begin{itemize}
+    \item Implement DataFrame/SQL version for comparison
+    \item Add support for multi-year temporal trend analysis
+    \item Include geographic aggregation using station metadata
+    \item Optimize for cluster deployment (YARN, Kubernetes)
+    \item Add real-time streaming analysis capabilities
+    \item Implement visualization dashboard for results
+    \item Scale to full GSOD dataset (all years, all stations)
+\end{itemize}
+
+\subsection{Final Remarks}
+
+The project successfully demonstrates the power of Apache Spark for distributed data analysis. The RDD API provides fine-grained control over data transformations and enables efficient processing of large climate datasets. The combination of Spark's distributed computing capabilities with Docker's containerization creates a robust, portable solution for climate data analysis.
+
+% ============================================================================
+% REFERENCES
+% ============================================================================
+\newpage
+\section*{References}
+\addcontentsline{toc}{section}{References}
+
+\begin{enumerate}
+    \item Apache Spark Documentation. \textit{RDD Programming Guide}. \\
+          \url{https://spark.apache.org/docs/latest/rdd-programming-guide.html}
+    
+    \item Apache Spark Documentation. \textit{PySpark API Reference}. \\
+          \url{https://spark.apache.org/docs/latest/api/python/}
+    
+    \item NOAA National Centers for Environmental Information. \textit{Global Surface Summary of the Day}. \\
+          \url{https://www.ncei.noaa.gov/data/global-summary-of-the-day/}
+    
+    \item Docker Documentation. \textit{Docker Desktop for Windows}. \\
+          \url{https://docs.docker.com/desktop/windows/}
+    
+    \item Keloglanian, J. (2025). \textit{II3502 Lab 6: Spark Climate Data Analysis}. \\
+          GitHub Repository: \url{https://github.com/Joaquim-Keloglanian/II3502_Lab6}
+\end{enumerate}
+
+% ============================================================================
+% APPENDICES
+% ============================================================================
+\newpage
+\appendix
+\section{Code Listings}
+
+\subsection{Main Application Entry Point}
+
+\begin{lstlisting}[language=Python, caption=climate\_analysis.py Main Function]
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Analyze NOAA GSOD climate data"
+    )
+    parser.add_argument(
+        "--input",
+        default="src/main/resources/data/",
+        help="Input path for GSOD CSV files"
+    )
+    parser.add_argument(
+        "--output",
+        default="src/main/resources/output/",
+        help="Output directory for analysis results"
+    )
+    
+    args = parser.parse_args()
+    os.makedirs(args.output, exist_ok=True)
+    main(args.input, args.output)
+\end{lstlisting}
+
+\subsection{Spark Configuration}
+
+\begin{lstlisting}[language=Python, caption=SparkContext Configuration]
+conf = (
+    SparkConf()
+    .setAppName("ClimateDataAnalysis")
+    .setMaster("local[*]")
+    .set("spark.hadoop.fs.file.impl",
+         "org.apache.hadoop.fs.LocalFileSystem")
+    .set("spark.hadoop.fs.defaultFS", "file:///")
+    .set("spark.python.worker.faulthandler.enabled", "true")
+)
+sc = SparkContext(conf=conf)
+\end{lstlisting}
+
+\subsection{Dockerfile}
+
+\begin{lstlisting}[caption=Dockerfile for Container Build]
+FROM python:3.11-slim
+
+# Install Java
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jre-headless && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY . .
+
+# Install dependencies
+RUN uv sync
+
+# Set default command
+CMD ["uv", "run", "python", "-m", 
+     "ii3502_lab6.climate_analysis"]
+\end{lstlisting}
+
+\end{document}

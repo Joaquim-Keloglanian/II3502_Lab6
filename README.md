@@ -101,28 +101,11 @@ pip install pyspark
 
 ### Running on Windows
 
-#### Option 1: Using Python Directly (Native)
+**⚠️ IMPORTANT: Windows users MUST use Docker due to PySpark/Hadoop native library incompatibilities.**
 
-1. **Ensure Java is installed and JAVA_HOME is set**:
-   ```powershell
-   # Check Java installation
-   java -version
-   
-   # Set JAVA_HOME (adjust path to your Java installation)
-   $env:JAVA_HOME = "C:\Program Files\Java\jdk-11"
-   # Or add to System Environment Variables for persistence
-   ```
+Native PySpark execution on Windows requires Hadoop native libraries (winutils.exe) which cause numerous compatibility issues. The Docker method provides a consistent Linux environment that eliminates these problems entirely.
 
-2. **Run the application**:
-   ```powershell
-   # With default paths
-   uv run python -m ii3502_lab6.climate_analysis
-   
-   # With custom paths
-   uv run python -m ii3502_lab6.climate_analysis --input "C:\data\" --output "C:\results\"
-   ```
-
-#### Option 2: Using Docker (Recommended for Windows)
+#### Using Docker (Required for Windows)
 
 Docker eliminates Windows-specific PySpark compatibility issues and provides a consistent execution environment.
 

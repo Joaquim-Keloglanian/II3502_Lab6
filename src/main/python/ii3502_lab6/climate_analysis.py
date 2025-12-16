@@ -249,15 +249,39 @@ def main(input_path, output_path):
     log_info("Found {0} file(s):", len(local_matches))
     for f in local_matches:
       log_info(" - {0}", f)
+
+    # On Windows, use Python to read files and parallelize (avoids Hadoop native library issues)
+    log_info("Loading files using Python (Windows compatibility mode)")
+    all_lines = []
+    for file_path in local_matches:
+      try:
+        with open(file_path, "r", encoding="utf-8") as f:
+          lines = f.readlines()
+          all_lines.extend([line.rstrip("\n\r") for line in lines])
+          log_info(
+            "  Loaded {0} lines from {1}", len(lines), os.path.basename(file_path)
+          )
+      except Exception as e:
+        log_info("  Warning: Could not read {0}: {1}", file_path, str(e))
+
+    if not all_lines:
+      logger.error("ERROR: No data loaded from files")
+      sc.stop()
+      return
+
+    log_info("Total lines loaded: {0}", len(all_lines))
+    raw_data = sc.parallelize(all_lines)
   else:
-    log_info(
-      "No local files matched the input pattern; using Spark path: {0}", input_path
-    )
+    # Fallback to Spark textFile for non-local paths
+    log_info("No local files matched; using Spark textFile() for: {0}", input_path)
+    try:
+      raw_data = sc.textFile(input_path)
+    except Exception as e:
+      logger.error("ERROR: Could not load data from {0}: {1}", input_path, str(e))
+      sc.stop()
+      return
 
-  log_info("Initializing Spark textFile() for input: {0}", input_path)
-  raw_data = sc.textFile(input_path)
-
-  # Show a small preview and counts for transparency
+  # Show a small preview
   try:
     t0 = time.time()
     raw_preview = raw_data.take(3)
@@ -268,14 +292,6 @@ def main(input_path, output_path):
         log_info("   {0}", line[:200])
   except Exception:
     pass
-
-  try:
-    t0 = time.time()
-    raw_count = raw_data.count()
-    t1 = time.time()
-    log_info("Total raw lines loaded: {0} (count took {1:.2f}s)", raw_count, t1 - t0)
-  except Exception:
-    log_info("Could not determine total line count (skipping count).")
 
   if raw_data.isEmpty():
     logger.error("ERROR: No data loaded from {0}", input_path)
@@ -607,8 +623,8 @@ Examples:
 
   parser.add_argument(
     "--input",
-    default="src/main/resources/data/",
-    help="Input path for GSOD CSV files. Can be a file, directory, or glob pattern (default: src/main/resources/data/)",
+    default="src/main/resources/data/*.csv",
+    help="Input path for GSOD CSV files. Can be a file, directory, or glob pattern (default: src/main/resources/data/*.csv)",
   )
 
   parser.add_argument(
@@ -619,8 +635,13 @@ Examples:
 
   args = parser.parse_args()
 
+  # Convert directory paths to glob patterns for Windows compatibility
+  input_path = args.input
+  if os.path.isdir(input_path):
+    input_path = os.path.join(input_path, "*.csv")
+
   # Ensure output directory exists before starting analysis
   os.makedirs(args.output, exist_ok=True)
 
   # Execute main analysis pipeline
-  main(args.input, args.output)
+  main(input_path, args.output)
