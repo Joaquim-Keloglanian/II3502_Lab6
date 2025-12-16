@@ -341,19 +341,30 @@ uv run python -m ii3502_lab6.climate_analysis \
 
 \subsection{Running on Windows (Docker)}
 
-\subsubsection{Installation}
+**⚠️ IMPORTANT: Windows users MUST use Docker due to PySpark/Hadoop native library incompatibilities.**
 
-\begin{enumerate}
-    \item Install Docker Desktop for Windows from \url{https://www.docker.com/products/docker-desktop/}
-    \item Ensure Docker Desktop is running
-    \item Open PowerShell or Git Bash in project root directory
-\end{enumerate}
+Native PySpark execution on Windows requires Hadoop native libraries (winutils.exe) which cause numerous compatibility issues. The Docker method provides a consistent Linux environment that eliminates these problems entirely.
 
-\subsubsection{Build Docker Image}
+\subsubsection{Build and Run Using Helper Script}
 
-\begin{lstlisting}[language=bash, caption=Build Docker Image]
-# Build the Docker image
-docker build -t ii3502-lab6 .
+The project includes a helper script that automatically rebuilds the Docker image from scratch and runs the application:
+
+\begin{lstlisting}[language=bash, caption=Run with Helper Script (Recommended)]
+# Use provided helper script (Git Bash / WSL)
+./run-docker-windows.sh
+
+# The script automatically:
+# 1. Builds Docker image from scratch with --no-cache
+# 2. Mounts src/main/resources directory
+# 3. Runs the climate analysis application
+# 4. Writes results to src/main/resources/output/
+\end{lstlisting}
+
+\subsubsection{Manual Docker Build and Run}
+
+\begin{lstlisting}[language=bash, caption=Build Docker Image from Scratch]
+# Build the Docker image (no cache for clean build)
+docker build --no-cache -t ii3502-lab6 .
 
 # Verify image was created
 docker images | grep ii3502-lab6
@@ -453,7 +464,9 @@ Common issues and solutions:
 
 \begin{itemize}
     \item \textbf{JAVA\_HOME not set}: Set environment variable to Java installation directory
-    \item \textbf{Windows path issues}: Use provided \texttt{run-docker-windows.sh} script
+    \item \textbf{Windows native library errors}: Use Docker (required for Windows) - native PySpark has incompatibility issues
+    \item \textbf{Python worker crashed}: This indicates Windows Hadoop library issues - use Docker instead
+    \item \textbf{Docker not building}: Ensure Docker Desktop is running and has adequate memory (at least 4GB)
     \item \textbf{Permission denied (Docker)}: Enable shared drives in Docker Desktop settings
     \item \textbf{Empty output}: Verify input data exists in \texttt{src/main/resources/data/}
     \item \textbf{Memory errors}: Increase Docker memory allocation in Docker Desktop settings
@@ -612,9 +625,17 @@ Using Docker for execution provides several advantages:
 
 \subsection{Windows PySpark Compatibility}
 
-\textbf{Challenge:} PySpark on Windows requires Hadoop native libraries (winutils.exe) which are difficult to configure.
+\textbf{Challenge:} PySpark on Windows requires Hadoop native libraries (winutils.exe) which cause critical errors including "Python worker exited unexpectedly (crashed)" and "UnsatisfiedLinkError: NativeIO\$Windows.access0". Initial attempts to use \texttt{sc.textFile()} with glob patterns failed due to Hadoop's file system layer requiring native Windows libraries.
 
-\textbf{Solution:} Created Docker container with Linux environment, eliminating Windows-specific dependencies while maintaining volume mounts for data access.
+\textbf{Solution:} Implemented a dual-mode data loading approach:
+\begin{itemize}
+    \item For local files matching glob patterns, use Python's \texttt{glob} module and \texttt{open()} to read files directly, then parallelize with \texttt{sc.parallelize()}
+    \item For non-local paths, fallback to Spark's \texttt{textFile()} method
+    \item Updated README to mandate Docker usage for Windows users
+    \item Enhanced \texttt{run-docker-windows.sh} script to automatically rebuild Docker images from scratch using \texttt{--no-cache} flag
+\end{itemize}
+
+This solution provides complete Windows compatibility through Docker while maintaining the ability to run natively on Linux/macOS systems.
 
 \subsection{Output File Proliferation}
 
