@@ -64,10 +64,14 @@ fi
 mkdir -p "${HOST_RES}"
 
 echo "Running Docker container..."
+echo "Spark UI will be available at: http://localhost:4040"
+echo ""
 # Run container with the mounted resources folder and forward any arguments to the container
+# Use -it for interactive terminal (allows Enter key press to stop)
+# Use -p 4040:4040 to expose Spark UI port
 # Use -- to allow passing args that begin with -
 if [[ "$#" -eq 0 ]]; then
-  docker run --rm -v "${HOST_RES}:/app/src/main/resources" ii3502-lab6
+  docker run --rm -it -p 4040:4040 -v "${HOST_RES}:/app/src/main/resources" ii3502-lab6
 else
-  docker run --rm -v "${HOST_RES}:/app/src/main/resources" ii3502-lab6 "$@"
+  docker run --rm -it -p 4040:4040 -v "${HOST_RES}:/app/src/main/resources" ii3502-lab6 "$@"
 fi

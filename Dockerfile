@@ -30,5 +30,8 @@ USER spark
 # Install Python dependencies using uv (PySpark is already included in the base image)
 RUN uv sync
 
+# Expose Spark UI port
+EXPOSE 4040
+
 # Default command to run the application
 CMD ["uv", "run", "python", "-m", "ii3502_lab6.climate_analysis"]
