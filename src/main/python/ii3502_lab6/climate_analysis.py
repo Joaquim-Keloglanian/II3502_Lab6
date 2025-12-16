@@ -30,6 +30,7 @@ import csv
 import shutil
 import logging
 import glob
+import time
 
 # Configure a simple logger for human-friendly, step-oriented output
 logger = logging.getLogger("climate")
@@ -222,6 +223,21 @@ def main(input_path, output_path):
   )
   sc = SparkContext(conf=conf)
 
+  # Spark diagnostics
+  log_step("Spark Context")
+  try:
+    log_info("Spark master: {0}", sc.master)
+  except Exception:
+    log_info("Spark master: (unavailable)")
+  try:
+    log_info("App name: {0}", sc.appName)
+  except Exception:
+    log_info("App name: (unavailable)")
+  try:
+    log_info("Default parallelism (approx): {0}", sc.defaultParallelism)
+  except Exception:
+    log_info("Default parallelism: (unavailable)")
+
   # ============================================================================
   # Step 1: Data Loading
   # ============================================================================
@@ -243,17 +259,21 @@ def main(input_path, output_path):
 
   # Show a small preview and counts for transparency
   try:
+    t0 = time.time()
     raw_preview = raw_data.take(3)
+    t1 = time.time()
     if raw_preview:
-      log_info("Preview (first lines):")
+      log_info("Preview (first lines) (took {0:.2f}s):", t1 - t0)
       for line in raw_preview:
         log_info("   {0}", line[:200])
   except Exception:
     pass
 
   try:
+    t0 = time.time()
     raw_count = raw_data.count()
-    log_info("Total raw lines loaded: {0}", raw_count)
+    t1 = time.time()
+    log_info("Total raw lines loaded: {0} (count took {1:.2f}s)", raw_count, t1 - t0)
   except Exception:
     log_info("Could not determine total line count (skipping count).")
 
@@ -326,12 +346,15 @@ def main(input_path, output_path):
 
   # Apply field extraction and filter out invalid records
   log_info("Extracting fields and validating records...")
+  t0 = time.time()
   cleaned_data = parsed_data.map(extract_fields).filter(lambda x: x is not None)
   cleaned_data = cleaned_data.filter(is_valid_record)
-
   try:
     cleaned_count = cleaned_data.count()
-    log_info("Valid records after cleaning: {0}", cleaned_count)
+    t1 = time.time()
+    log_info(
+      "Valid records after cleaning: {0} (count took {1:.2f}s)", cleaned_count, t1 - t0
+    )
   except Exception:
     log_info("Valid records after cleaning: (count unavailable)")
 
@@ -430,6 +453,7 @@ def main(input_path, output_path):
 
   # Compute hottest year (average temperature across all stations for each year)
   try:
+    t0 = time.time()
     hottest_year = (
       yearly_avg_temp.map(lambda x: (x[0][1], (x[1], 1)))  # Extract year
       .reduceByKey(lambda a, b: (a[0] + b[0], a[1] + b[1]))  # Aggregate by year
@@ -437,27 +461,50 @@ def main(input_path, output_path):
       .sortBy(lambda x: x[1], ascending=False)
       .first()
     )
+    t1 = time.time()
+    log_info(
+      "Computed hottest year (took {0:.2f}s): {1} -> {2:.2f}",
+      t1 - t0,
+      hottest_year[0],
+      hottest_year[1],
+    )
   except ValueError:
     hottest_year = (None, 0.0)
 
   # Compute wettest station (total precipitation across all observations)
   try:
+    t0 = time.time()
     wettest_station = (
       transformed_data.map(lambda r: (r["station"], r["prcp"]))
       .reduceByKey(lambda a, b: a + b)  # Sum all precipitation
       .sortBy(lambda x: x[1], ascending=False)
       .first()
     )
+    t1 = time.time()
+    log_info(
+      "Computed wettest station (took {0:.2f}s): {1} -> {2}",
+      t1 - t0,
+      wettest_station[0],
+      wettest_station[1],
+    )
   except ValueError:
     wettest_station = (None, 0.0)
 
   # Compute highest wind gust recorded across all stations
   try:
+    t0 = time.time()
     highest_gust = (
       transformed_data.map(lambda r: (r["station"], r["gust"]))
       .reduceByKey(max)  # Find maximum gust per station
       .sortBy(lambda x: x[1], ascending=False)
       .first()
+    )
+    t1 = time.time()
+    log_info(
+      "Computed highest gust (took {0:.2f}s): {1} -> {2}",
+      t1 - t0,
+      highest_gust[0],
+      highest_gust[1],
     )
   except ValueError:
     highest_gust = (None, 0.0)
@@ -485,29 +532,44 @@ def main(input_path, output_path):
       shutil.rmtree(dir_path)
 
   # Save monthly average temperatures (format: station,year,month,avg_temp)
+  log_info("Saving monthly averages...")
+  t0 = time.time()
   monthly_avg_temp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[0][2]},{x[1]}").coalesce(
     1
   ).saveAsTextFile(output_path + "/monthly_avg_temp")
+  log_info("Saved monthly averages (took {0:.2f}s)", time.time() - t0)
 
   # Save yearly average temperatures (format: station,year,avg_temp)
+  log_info("Saving yearly averages...")
+  t0 = time.time()
   yearly_avg_temp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[1]}").coalesce(
     1
   ).saveAsTextFile(output_path + "/yearly_avg_temp")
+  log_info("Saved yearly averages (took {0:.2f}s)", time.time() - t0)
 
   # Save seasonal precipitation averages (format: station,year,season,avg_prcp)
+  log_info("Saving seasonal precipitation averages...")
+  t0 = time.time()
   seasonal_prcp.map(lambda x: f"{x[0][0]},{x[0][1]},{x[0][2]},{x[1]}").coalesce(
     1
   ).saveAsTextFile(output_path + "/seasonal_prcp")
+  log_info("Saved seasonal precipitation (took {0:.2f}s)", time.time() - t0)
 
   # Save top 10 stations with highest maximum temperatures (format: station,max_temp)
+  log_info("Saving highest max temp list...")
+  t0 = time.time()
   sc.parallelize(highest_max_temp).map(lambda x: f"{x[0]},{x[1]}").coalesce(
     1
   ).saveAsTextFile(output_path + "/highest_max_temp")
+  log_info("Saved highest max temp list (took {0:.2f}s)", time.time() - t0)
 
   # Save extreme events counts (format: station,event_type,count)
+  log_info("Saving extreme events counts...")
+  t0 = time.time()
   extreme_events.map(lambda x: f"{x[0][0]},{x[0][1]},{x[1]}").coalesce(
     1
   ).saveAsTextFile(output_path + "/extreme_events")
+  log_info("Saved extreme events counts (took {0:.2f}s)", time.time() - t0)
 
   # Save summary statistics as human-readable text
   summary = sc.parallelize(
@@ -520,6 +582,8 @@ def main(input_path, output_path):
   summary.coalesce(1).saveAsTextFile(output_path + "/summary")
 
   log_info("Analysis complete! Results saved successfully.")
+  # Give Spark a short grace period to flush logs, then stop
+  time.sleep(0.5)
   sc.stop()
 
 
